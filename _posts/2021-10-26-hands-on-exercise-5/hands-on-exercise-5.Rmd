@@ -1,0 +1,113 @@
+---
+title: "Hand-On Exercise 5"
+description: |
+  Network Constrained Spatial Point Patterns Analysis (NetSPPA)
+author:
+  - name: Ngah Xin Yan
+    url: https://github.com/nxinyan/
+date: 09-12-2021
+output:
+  distill::distill_article:
+    self_contained: false
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, 
+                      eval = TRUE,
+                      message = FALSE,
+                      warning = FALSE,
+                      fig.retina = 3)
+```
+
+## Overview 
+
+Network constrained Spatial Point Patterns Analysis (NetSPAA) is a collection of spatial point patterns analysis methods special developed for analysing spatial point event occurs on or alongside network. The spatial point event can be locations of traffic accident or childcare centre for example. The network, on the other hand can be a road network or river network.
+
+In this hands-on exercise, you are going to gain hands-on experience on using appropriate functions of spNetwork package:
+
+- to derive network constrained kernel density estimation (NetKDE)
+- to perform network G-function and k-function analysis
+
+## The Data
+
+In this study, we will analyse the spatial distribution of childcare centre in Punggol planning area. For the purpose of this study, two geospatial data sets will be used. They are:
+
+Punggol_St, a line features geospatial data which store the road network within Punggol Planning Area.
+Punggol_CC, a point feature geospatial data which store the location of childcare centres within Punggol Planning Area.
+Both data sets are in ESRI shapefile format.
+
+## Installing and Loading the R packages
+
+- [**sp**](https://cran.r-project.org/web/packages/sp/index.html): provides classes and methods for dealing with spatial data in R, manage SpatialPointsDataFrame and SpatiaLinesDataFrame, and performing projection transformation.
+
+- [**spNetwork**](https://cran.r-project.org/web/packages/spNetwork/index.html): used for performing Spatial Point Patterns Analysis such as kernel density estimation (KDE) and K-function on network. It also can be used to build spatial matrices (‘listw’ objects like in ‘spdep’ package) to conduct any kind of traditional spatial analysis with spatial weights based on reticular distances.
+
+- [**rgdal**](https://cran.r-project.org/web/packages/rgdal/index.html): which provides bindings to the ‘Geospatial’ Data Abstraction Library (GDAL) (>= 1.11.4) and access to projection/transformation operations from the PROJ library. In this exercise, rgdal will be used to import geospatial data in R and store as sp objects.
+
+- **tmap**: provides functions for plotting cartographic quality static point patterns maps or interactive maps by using leaflet API.
+
+```{r}
+packages = c('sp', 'rgdal', 'spNetwork', 'tmap')
+for (p in packages){
+  if(!require(p, character.only = T)){
+    install.packages(p)
+  }
+  library(p,character.only = T)
+}
+```
+
+## Data Import and Preparation
+
+The code chunk below uses readOGR() of rgdal package to important Punggol_St and Punggol_CC geospatial data sets into RStudio as SpatialLinesDataFrame and SpatialPointsDataFrame respectively.
+
+```{r}
+network <- readOGR(dsn="data/geospatial", 
+                   layer="Punggol_St",
+                   verbose = FALSE)
+childcare <- readOGR(dsn="data/geospatial",
+                     layer="Punggol_CC",
+                     verbose = FALSE)
+```
+
+Examine the structure of the output SpatialDataFrame in RStudio
+
+```{r}
+#str(network)
+str(childcare)
+```
+
+While exploring spNetwork’s functions, it came to my attention that spNetwork is expecting the geospatial data contains complete CRS information.
+
+spTransform() of sp package is used to assign EPSG code to the SpatialDataFrames. The epsg:3414 is the code for svy21.
+
+```{r}
+childcare <-spTransform(childcare, CRS("+init=epsg:3414"))
+network <- spTransform(network,CRS("+init=epsg:3414"))
+```
+
+## Visualising the Geospatial Data
+
+```{r}
+plot(network)
+plot(childcare,add=T,col='red',pch = 19)
+```
+
+Visualising the geospatial data with high cartographic quality and interactive manner
+
+```{r}
+tmap_mode('view')
+tm_shape(childcare)+
+  tm_dots() +
+tm_shape(network)+
+  tm_lines()
+```
+
+## Network Constrained KDE (NetKDE) Analysis
+
+In this section, we will perform NetKDE analysis by using appropriate functions provided in spNetwork package
+
+### Preparing the lixels objects
+
+Before computing NetKDE, the SpatialLines object need to be cut into lixels with a specified minimal distance. This task can be performed by using with lixelize_lines() of spNetwork as shown in the code chunk below.
+
